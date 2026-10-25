@@ -1,0 +1,22 @@
+{
+  "name": "Grammar Desk",
+  "short_name": "Grammar Desk",
+  "description": "Esercizi di grammatica inglese dai tuoi libri, piano di studio, prove d’esame B1 e flashcard.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "background_color": "#eef1f5",
+  "theme_color": "#eef1f5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Allenamento di oggi", "short_name": "Oggi", "url": "./?go=home", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Ripasso errori", "short_name": "Ripasso", "url": "./?go=review", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Flashcard", "short_name": "Parole", "url": "./?go=flash", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
