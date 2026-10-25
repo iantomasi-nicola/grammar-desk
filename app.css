@@ -97,8 +97,8 @@
 }
 
 [hidden] { display: none !important; }
-html, body { height: 100%; }
-body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: var(--fs); line-height: 1.5; -webkit-text-size-adjust: 100%; font-optical-sizing: auto; -webkit-font-smoothing: antialiased; }
+html { height: 100%; font-size: var(--fs); }
+body { height: 100%; background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 1rem; line-height: 1.5; -webkit-text-size-adjust: 100%; font-optical-sizing: auto; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 button, input, textarea, select { font: inherit; color: inherit; }
 svg { width: 20px; height: 20px; flex: none; }
@@ -281,7 +281,7 @@ button.li:active { transform: scale(.99); }
 .mini .bar { width: 64px; height: 6px; }
 
 /* ---------- exercise sheet ---------- */
-.sheet { background: var(--md-container-low); border-radius: var(--r-xl); padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.sheet { background: var(--md-container-low); border-radius: var(--r-xl); padding: 14px; display: grid; gap: 10px; min-width: 0; font-size: calc(1rem * var(--ex, 1)); }
 @media (min-width: 600px) { .sheet { padding: 20px 24px; } }
 .exhead { display: flex; gap: 12px; align-items: flex-start; }
 .exlabel { flex: none; background: var(--md-primary); color: var(--md-on-primary); font-family: var(--f-display); font-weight: 650; border-radius: 999px; padding: 2px 12px; font-size: .95rem; font-variant-numeric: tabular-nums; margin-top: 1px; }
@@ -631,3 +631,46 @@ body.focusview { --nav-h: 0px; }
 .svc.off { opacity: .6; }
 .offchip { color: var(--muted); }
 .offchip[hidden] { display: none; }
+
+/* ---------- text size sliders ---------- */
+.sizer { display: grid; gap: 6px; }
+.sizer .row { gap: 8px; }
+.sizer input[type="range"] { flex: 1; min-width: 0; height: 36px; accent-color: var(--md-primary); }
+.sizer .iconbtn { font-weight: 650; }
+.sizer .val { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 3.2em; text-align: right; }
+.preview { border-radius: var(--r-md); background: var(--md-container-high); padding: 12px 14px; }
+.preview .flow { font-size: calc(1rem * var(--ex, 1)); }
+
+/* ---------- exercise on a phone: as much of it as possible in one screen ---------- */
+.exbar { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.exwhere { font-size: .875rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exwhere b { color: var(--ink); font-weight: 650; }
+@media (max-width: 599px) {
+  body.focusview .topbar-in { min-height: 44px; }
+  body.focusview .topbar h1 { font-size: 1.05rem; }
+  body.focusview #syncdot, body.focusview #offchip, body.focusview .streak-chip, body.focusview .topbar-in > .iconbtn:last-child { display: none; }
+  body.focusview .timer-chip { min-height: 34px; }
+  body.focusview .wrap { padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); gap: 6px; padding-block: 0 8px; }
+  body.focusview .main { padding-bottom: 76px; }
+  .exbar .btn.small { min-height: 32px; padding: 0 12px; }
+  .exbar .lbl { display: none; }
+  .dots { padding: 0 2px 2px; gap: 4px; }
+  .dots button { width: 32px; height: 32px; font-size: .75rem; }
+  .sheet { padding: 10px 12px 12px; gap: 6px; border-radius: 22px; }
+  .exhead { gap: 8px; }
+  .exlabel { font-size: .8rem; padding: 1px 9px; }
+  .instr { font-size: .95em; line-height: 1.3; }
+  .orig summary { min-height: 34px; padding: 4px 12px; font-size: .82rem; }
+  .flow { font-size: .98em; line-height: 1.42; }
+  .ln.gap { margin-top: 3px; }
+  .ln.item { padding-left: 2em; text-indent: -2em; }
+  input.blank { min-height: 32px; padding: 2px 8px 1px; margin: 1px; }
+  .mk { min-width: 1.5em; height: 1.5em; margin-right: .4em; }
+  .why { min-height: 24px; padding: 0 8px; margin-left: 4px; }
+  .explain { margin: 2px 0 4px; padding: 8px 12px; }
+  .queuebar { padding: 6px 12px; font-size: .8rem; }
+  .actionbar { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding: 6px 6px 6px 14px; gap: 6px; border-radius: 26px; }
+  .actionbar .btn { min-height: 42px; padding: 0 16px; }
+  .wrap > details.card.flat { padding: 6px 12px; }
+  .wrap > details.card.flat > summary { min-height: 32px !important; }
+}

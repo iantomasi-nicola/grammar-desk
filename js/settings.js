@@ -202,6 +202,30 @@ function backupSection() {
     h('div', { class: 'row wrapr' }, h('button', { class: 'btn', onclick: exportAll }, icon('upload'), 'Esporta backup'), h('label', { class: 'btn', for: 'bkin' }, icon('plus'), 'Ripristina da file', inp)));
 }
 
+/* ---------- text size ---------- */
+const SIZE_DEF = 100;
+function sizer(label, key, cur, min, max, hint) {
+  const id = 'sz-' + key; cur = cur || SIZE_DEF;
+  const out = h('span', { class: 'val', id: id + '-v' }, cur + '%');
+  const apply = (v, save) => {
+    v = Math.max(min, Math.min(max, Math.round(v / 5) * 5));
+    out.textContent = v + '%'; range.value = v;
+    const r = document.documentElement;
+    if (key === 'size') r.style.setProperty('--fs', (17 * v / 100).toFixed(2) + 'px'); else r.style.setProperty('--ex', String(v / 100));
+    if (save) putMeta((m) => { m.cfg = { ...(m.cfg || {}), [key]: v }; });
+  };
+  const range = h('input', { type: 'range', id, min, max, step: 5, value: cur, 'aria-label': label, oninput: (e) => apply(+e.target.value, false), onchange: (e) => apply(+e.target.value, true) });
+  return h('div', { class: 'field sizer' },
+    h('div', { class: 'row' }, h('label', { for: id }, label), h('div', { class: 'grow' }), out, h('button', { class: 'btn small ghost', onclick: () => apply(SIZE_DEF, true) }, 'Ripristina')),
+    h('div', { class: 'row' }, h('button', { class: 'iconbtn', 'aria-label': 'Più piccolo', onclick: () => apply(+range.value - 5, true) }, h('span', { 'aria-hidden': 'true', style: { fontSize: '.85rem' } }, 'A')), range, h('button', { class: 'iconbtn', 'aria-label': 'Più grande', onclick: () => apply(+range.value + 5, true) }, h('span', { 'aria-hidden': 'true', style: { fontSize: '1.3rem' } }, 'A'))),
+    h('div', { class: 'small muted' }, hint));
+}
+function exPreview() {
+  return h('div', { class: 'preview' }, h('div', { class: 'flow' },
+    h('div', { class: 'ln item' }, h('span', { class: 'mk' }, '1'), 'Please don’t make so much noise. I ', h('span', { class: 'exm' }, 'am trying'), ' (try) to work.'),
+    h('div', { class: 'ln item' }, h('span', { class: 'mk' }, '2'), 'Look! It ', h('span', { class: 'exm' }, 'is snowing'), ' (snow).')));
+}
+
 /* ---------- the view ---------- */
 VIEWS.settings = async ({ sec } = {}) => {
   const c = cfg();
@@ -214,7 +238,9 @@ VIEWS.settings = async ({ sec } = {}) => {
     h('section', { class: 'card stack' }, h('div', { class: 'h2' }, 'Obiettivo giornaliero'), h('div', { class: 'muted small' }, 'Esercizi da completare ogni giorno per tenere viva la serie.'), seg([[1, '1'], [2, '2'], [3, '3'], [5, '5'], [8, '8'], [12, '12']], c.goal, (k) => set({ goal: +k }))),
     h('section', { class: 'card stack' }, h('div', { class: 'h2' }, 'Aspetto'),
       h('div', { class: 'field' }, h('label', null, 'Tema'), seg([['system', 'Automatico'], ['light', 'Chiaro'], ['dark', 'Scuro']], c.theme, (k) => set({ theme: k }))),
-      h('div', { class: 'field' }, h('label', null, 'Dimensione del testo'), seg([[90, 'Piccolo'], [100, 'Normale'], [115, 'Grande'], [130, 'Molto grande']], c.size, (k) => set({ size: +k }))),
+      sizer('Testo dell’app', 'size', c.size, 80, 140, 'Tutta l’interfaccia: titoli, liste, pulsanti.'),
+      sizer('Testo degli esercizi', 'exsize', c.exsize, 80, 150, 'Frasi e risposte degli esercizi: più piccolo = più righe nella stessa schermata.'),
+      exPreview(),
       h('div', { class: 'field' }, h('label', null, 'Cronometro negli esercizi'), seg([[true, 'Visibile'], [false, 'Nascosto']], c.sw !== false, (k) => set({ sw: k === true || k === 'true' }))),
       h('div', { class: 'field' }, h('label', null, 'Pagina originale negli esercizi'), seg([[false, 'Solo se serve'], [true, 'Sempre aperta']], c.orig, (k) => set({ orig: k === true || k === 'true' })))),
     accountSection(),

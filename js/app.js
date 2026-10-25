@@ -75,14 +75,14 @@ const IDB = {
       r.onerror = () => rej(r.error);
     });
   },
-  async get(store, key) { try { const d = await this.open(); return await new Promise((res, rej) => { const q = d.transaction(store).objectStore(store).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { return undefined; } },
-  async put(store, key, val) { try { const d = await this.open(); return await new Promise((res, rej) => { const tx = d.transaction(store, 'readwrite'); tx.objectStore(store).put(val, key); tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); } catch (e) { return false; } },
-  async del(store, key) { try { const d = await this.open(); return await new Promise((res) => { const tx = d.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); } catch (e) { return false; } },
-  async keys(store) { try { const d = await this.open(); return await new Promise((res) => { const q = d.transaction(store).objectStore(store).getAllKeys(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); } catch (e) { return []; } },
+  async get(store, key) { try { const d = this.db || await this.open(); return await new Promise((res, rej) => { const q = d.transaction(store).objectStore(store).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { return undefined; } },
+  async put(store, key, val) { try { const d = this.db || await this.open(); return await new Promise((res, rej) => { const tx = d.transaction(store, 'readwrite'); tx.objectStore(store).put(val, key); tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); } catch (e) { return false; } },
+  async del(store, key) { try { const d = this.db || await this.open(); return await new Promise((res) => { const tx = d.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); } catch (e) { return false; } },
+  async keys(store) { try { const d = this.db || await this.open(); return await new Promise((res) => { const q = d.transaction(store).objectStore(store).getAllKeys(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); }); } catch (e) { return []; } },
   /* every [key, value] of a store (small stores only: documents, not PDFs) */
   async all(store) {
     try {
-      const d = await this.open();
+      const d = this.db || await this.open();
       return await new Promise((res) => {
         const out = []; const q = d.transaction(store).objectStore(store).openCursor();
         q.onsuccess = () => { const c = q.result; if (c) { out.push([c.key, c.value]); c.continue(); } else res(out); };
@@ -236,7 +236,7 @@ function syncLabel() { return { cloud: 'Sincronizzato sui tuoi dispositivi', con
 /* ---- domain accessors ---- */
 function meta() { return Store.get('meta') || { books: {}, cfg: {}, days: {}, last: null }; }
 function putMeta(fn) { const m = JSON.parse(JSON.stringify(meta())); fn(m); Store.put('meta', m); }
-function cfg() { return { goal: 3, theme: 'system', size: 100, orig: false, ...(meta().cfg || {}) }; }
+function cfg() { return { goal: 3, theme: 'system', size: 100, exsize: 100, orig: false, ...(meta().cfg || {}) }; }
 const progId = (fp, sec) => 'P' + fp8(fp) + '_' + sec;
 function prog(fp, sec) { return Store.get(progId(fp, sec)) || { x: {} }; }
 function exRec(fp, ex) { return prog(fp, ex.sec).x[ex.id] || null; }
@@ -423,7 +423,8 @@ function applyTheme() {
   const c = cfg();
   const r = document.documentElement;
   if (c.theme === 'light' || c.theme === 'dark') r.setAttribute('data-theme', c.theme); else r.removeAttribute('data-theme');
-  r.style.setProperty('--fs', Math.round(17 * (c.size || 100) / 100) + 'px');
+  r.style.setProperty('--fs', (17 * (c.size || 100) / 100).toFixed(2) + 'px');
+  r.style.setProperty('--ex', String((c.exsize || 100) / 100));
 }
 
 function shell(title, content, opts) {
@@ -2658,7 +2659,7 @@ VIEWS.exercise = async ({ fp, ex: exId, retry }) => {
         }
         const n = sg.n || 0;
         const guess = (GGCore.firstAnswer(key.a)[n] || key.a || '').length;
-        const el = h('input', { class: 'blank' + (sg.wide || sg.end && guess > 26 ? ' wide' : ''), type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': 'Domanda ' + item + (ex.inputs && ex.inputs[item] > 1 ? ', spazio ' + (n + 1) : ''), 'data-item': item, 'data-n': n, size: Math.max(6, Math.min(guess + 3, 34)) });
+        const el = h('input', { class: 'blank' + (sg.wide || sg.end && guess > 26 ? ' wide' : ''), type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'next', 'aria-label': 'Domanda ' + item + (ex.inputs && ex.inputs[item] > 1 ? ', spazio ' + (n + 1) : ''), 'data-item': item, 'data-n': n, size: Math.max(5, Math.min(guess + 1, 30)) });
         el.value = (A[item] || [])[n] || '';
         const it = { el, item, n };
         let okb = null;
@@ -2732,7 +2733,7 @@ VIEWS.exercise = async ({ fp, ex: exId, retry }) => {
     saveDraft();
     $$('[data-item="' + item + '"][data-k]', sheet).forEach((b) => { b.setAttribute('aria-pressed', cur.includes(b.dataset.k) ? 'true' : 'false'); b.classList.remove('ok', 'bad'); });
   }
-  function autoSize(el) { const L = el.value.length; if (!el.classList.contains('wide')) el.size = Math.max(+el.getAttribute('size') || 6, Math.min(L + 2, 40)); }
+  function autoSize(el) { const L = el.value.length; if (!el.classList.contains('wide')) el.size = Math.max(+el.getAttribute('size') || 5, Math.min(L + 1, 40)); }
 
   // keyboard: Enter moves on
   inputs.forEach((it, i) => it.el.addEventListener('keydown', (e) => {
@@ -2894,7 +2895,7 @@ VIEWS.exercise = async ({ fp, ex: exId, retry }) => {
     h('div', { class: 'exhead' }, h('span', { class: 'exlabel', id: 'exl' }, ex.label), instr),
     orig, mostlyMissing ? h('div', { class: 'small muted' }, 'Esercizio illustrato: leggi la pagina originale (tocca per ingrandire) e scrivi le risposte qui sotto.') : null, flow, missingBox);
   const askBox = SAMPLE ? exerciseAsk(ex, sec) : null;
-  const parts = [h('div', { class: 'row wrapr', style: { gap: '10px' } }, h('div', { class: 'grow stack', style: { gap: '0' } }, h('div', { class: 'eyebrow' }, sec.kind === 'unit' ? 'Unità ' + sec.num : sec.kind === 'group' ? 'Unità ' + (sec.refs || '') : secTitle(sec)), h('div', { class: 'small muted' }, secTitle(sec))), theoryTargets(fp, sec).length ? h('button', { class: 'btn small', onclick: () => openTheorySheet(fp, sec) }, icon('book'), 'Teoria') : null), qs ? h('div', { class: 'queuebar' }, icon('bolt'), h('span', { class: 'grow' }, 'Allenamento di oggi'), h('span', { class: 'num' }, (qs.i + 1) + ' / ' + qs.list.length)) : null, dots, sheet, askBox, bar].filter(Boolean);
+  const parts = [h('div', { class: 'exbar' }, h('div', { class: 'grow exwhere' }, h('b', null, sec.kind === 'unit' ? 'Unità ' + sec.num : sec.kind === 'group' ? 'Unità ' + (sec.refs || '') : secTitle(sec)), sec.kind === 'unit' || sec.kind === 'group' ? [' · ', secTitle(sec)] : null), theoryTargets(fp, sec).length ? h('button', { class: 'btn small', 'aria-label': 'Teoria', onclick: () => openTheorySheet(fp, sec) }, icon('book'), h('span', { class: 'lbl' }, 'Teoria')) : null), qs ? h('div', { class: 'queuebar' }, icon('bolt'), h('span', { class: 'grow' }, 'Allenamento di oggi'), h('span', { class: 'num' }, (qs.i + 1) + ' / ' + qs.list.length)) : null, dots, sheet, askBox, bar].filter(Boolean);
   S.after = () => {
     if (showRes && !retry) {
       swOn = false;
