@@ -31,7 +31,7 @@
       const ov = document.createElement('div');
       ov.className = 'lg-ov';
       ov.innerHTML = '<form class="lg-box" autocomplete="on">' +
-        '<div class="lg-brand">Grammar <span>Desk</span></div>' +
+        '<img class="lg-logo" src="icons/icon-192.png" alt="">' + '<div class="lg-brand">Grammar <span>Desk</span></div>' +
         '<p>Accedi per avere progressi, parole e libri su tutti i tuoi dispositivi.</p>' +
         '<input name="email" type="email" placeholder="Email" autocomplete="username" required>' +
         '<input name="pw" type="password" placeholder="Password (almeno 6 caratteri)" autocomplete="current-password" minlength="6" required>' +

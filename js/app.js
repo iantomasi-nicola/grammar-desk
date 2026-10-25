@@ -443,12 +443,12 @@ function shell(title, content, opts) {
 }
 
 function navBar() {
-  const cur = TAB_OF[S.view] || 'home';
+  const cur = S.view === 'settings' ? '' : TAB_OF[S.view] || 'home';
   const dueN = dueCards().length;
   const mk = (cls) => h('nav', { class: cls, 'aria-label': 'Sezioni' },
     cls === 'rail' ? h('div', { class: 'brand' }, 'Grammar ', h('span', null, 'Desk')) : null,
     TABS.map((t) => h('button', { 'aria-current': cur === t.v ? 'page' : null, onclick: () => { S.stack = []; go(t.v, {}, true); } }, icon(t.i), h('span', null, t.l), t.v === 'vocab' && dueN ? h('span', { class: 'badge', 'aria-label': dueN + ' da ripassare' }, dueN) : null)),
-    cls === 'rail' ? [h('button', { 'aria-current': S.view === 'review' ? 'page' : null, onclick: () => { S.stack = []; go('review', {}, true); } }, icon('review'), h('span', null, 'Ripasso')), h('div', { class: 'spacer' }), h('button', { onclick: () => go('settings') }, icon('gear'), h('span', null, 'Impostazioni'))] : null,
+    cls === 'rail' ? [h('button', { 'aria-current': S.view === 'review' ? 'page' : null, onclick: () => { S.stack = []; go('review', {}, true); } }, icon('review'), h('span', null, 'Ripasso')), h('div', { class: 'spacer' }), h('button', { 'aria-current': S.view === 'settings' ? 'page' : null, onclick: () => go('settings') }, icon('gear'), h('span', null, 'Impostazioni'))] : null,
   );
   return [mk('rail'), mk('nav')];
 }
@@ -2076,29 +2076,29 @@ VIEWS.home = async () => {
     week.append(h('div', null, h('i', { class: (on ? 'on' : '') + (k === dayKey() ? ' now' : '') }, on ? icon('flame') : ''), d));
   });
   const acc = t.i ? Math.round((t.c / t.i) * 100) + '%' : '–';
-  const todayCard = h('section', { class: 'card stack', 'aria-labelledby': 'td' },
+  const todayCard = h('section', { class: 'card hero stack', 'aria-labelledby': 'td' },
     h('div', { class: 'today' }, h('div', { class: 'ringw' }, ring),
       h('div', { class: 'h2', id: 'td' }, done >= goal ? 'Obiettivo di oggi raggiunto' : done ? 'Ancora ' + (goal - done) + ' per l’obiettivo' : 'Obiettivo di oggi: ' + goal + ' esercizi'),
       h('div', { class: 'kpis' }, h('div', { class: 'kpi' }, h('b', null, st.cur), h('span', null, 'giorni di fila')), h('div', { class: 'kpi' }, h('b', null, Math.round(t.m || 0)), h('span', null, 'minuti oggi')), h('div', { class: 'kpi' }, h('b', null, acc), h('span', null, 'precisione')))),
     week);
 
   const parts = [h('div', { class: 'hello' }, h('div', { class: 'eyebrow' }, now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })), h('h2', { class: 'h-display' }, greet + '.'))];
+  parts.push(todayCard);
   if (!SAMPLE) parts.push(h('div', { class: 'card flat row wrapr' }, icon('spark'), h('div', { class: 'grow small' }, h('b', null, 'Attiva l’AI. '), 'Prove d’esame, correzione di Writing e Speaking e spiegazioni usano un servizio AI: aggiungi la tua chiave (anche gratuita).'), h('button', { class: 'btn small', onclick: () => go('settings', { sec: 'ai' }) }, 'Imposta')));
   if (!books.length) {
     parts.push(dropZone(true));
     parts.push(planTodayCard());
-    parts.push(todayCard);
     return shell('Grammar Desk', parts);
   }
   for (const fp of Object.keys(m.books || {})) await getBook(fp);
   parts.push(planTodayCard());
   if (SAMPLE || examLog().length) parts.push(weakCard(true));
-  parts.push(todayCard);
   // smart daily training
   const loaded = await Promise.all(Object.keys(m.books || {}).map((fp) => getBook(fp)));
   if (loaded.some(Boolean)) {
     const mix = dailyMix();
     if (mix.length) {
+      parts.push(h('button', { class: 'btn efab', onclick: () => startQueue(mix) }, icon('play'), 'Allenati'));
       const ml = h('div', { class: 'list' });
       for (const it of mix) { const b = BOOKS[it.fp]; const ex = b.ex[it.ex]; const sc = b.sections.find((x) => x.id === ex.sec); const r = exRec(it.fp, ex); ml.append(h('button', { class: 'li', onclick: () => startQueue(mix.slice(mix.indexOf(it))) }, h('div', { class: 'unum ' + (it.why === 'Nuovo' ? '' : 'part') }, ex.label), h('div', { class: 'grow' }, h('div', { class: 't' }, secTitle(sc)), h('div', { class: 's' }, (b.profile === 'egu-sup' ? 'Supplementary · ' : '') + (r && r.at ? 'ultimo ' + r.s + '/' + r.t + ' · ' : '') + fixText((ex.instr || []).map((x) => x.s).join(' ')).slice(0, 70) + ((ex.instr || []).map((x) => x.s).join(' ').length > 70 ? '…' : ''))), h('span', { class: 'chip ' + (it.why === 'Nuovo' ? 'blue' : it.why === 'Ripasso errori' ? 'bad' : it.why === 'Piano' ? 'good' : 'mark') }, it.why))); }
       parts.push(h('section', { class: 'stack' }, h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'eyebrow' }, 'Allenamento di oggi'), h('div', { class: 'small muted' }, 'Prima gli esercizi del piano di oggi, poi gli errori da ripassare al momento giusto e la tua unità più debole.')), h('button', { class: 'btn primary', onclick: () => startQueue(mix) }, icon('bolt'), 'Inizia')), ml));
@@ -2900,7 +2900,7 @@ VIEWS.exercise = async ({ fp, ex: exId, retry }) => {
       swOn = false;
       const res = grade(); paint(res); R.res = res;
       const sc = Object.values(res).filter((r) => r.ok).length;
-      bar.replaceChildren(h('div', { class: 'grow' }, h('div', { class: 'score' }, sc + ' / ' + total), h('div', { class: 'small muted' }, 'Ultimo tentativo · modifica e ricorreggi quando vuoi')), sc < total && !ex.open ? h('button', { class: 'btn', onclick: retryWrong }, 'Riprova errori') : null, h('button', { class: 'btn', onclick: check }, 'Ricorreggi'), nextBtn());
+      bar.replaceChildren(h('div', { class: 'grow' }, h('div', { class: 'score' }, sc + ' / ' + total), h('div', { class: 'small muted' }, 'Ultimo tentativo')), sc < total && !ex.open ? h('button', { class: 'btn', onclick: retryWrong }, 'Riprova errori') : null, h('button', { class: 'btn', onclick: check }, 'Ricorreggi'), nextBtn());
     } else {
       const f = inputs.find((it) => !it.el.value);
       if (f && window.matchMedia('(pointer: fine)').matches) f.el.focus({ preventScroll: true });

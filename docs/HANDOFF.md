@@ -10,6 +10,12 @@ Grammar Desk era un artefatto claude.ai; ora è una PWA indipendente (stesso cod
 - **AI** (`js/ai.js`): `SAMPLE(prompt, opts)` e `SAMPLE.json(...)` come prima; `SAMPLE` è `null` se non c'è nessun servizio. Le chiavi stanno nel documento `AIK` (sincronizzato) o in `localStorage` (`gd.aiLocal`).
 - Stessa origine di altre app su `github.io`: le chiavi di localStorage di questa app iniziano con `gd`. Cache dello SW: `gd-*`. Un'altra app che cancella le cache altrui può svuotare quelle di Grammar Desk: la pagina chiede allo SW di ripristinarle (`warm`) a ogni apertura.
 
+## Design (Material 3 Expressive)
+- `app.css` parte dai **token di colore** `--md-*` (superfici tonali, primary / secondary / warm / error / success, chiaro e scuro) e li espone con i nomi storici (`--sheet`, `--blue`, `--line`…): il codice JS usa solo questi.
+- Forme grandi (card 24, hero 32, pulsanti a pillola), pulsanti pieno / tonale (default) / testo, gruppo di pulsanti collegati per le scelte (`.seg`: quello scelto diventa pillola), liste segmentate (`.list > .li`), navigazione: barra in basso con indicatore a pillola (<600 px), rail (≥600), drawer (≥1200).
+- Font: Google Sans Flex (variabile, in `fonts/`), niente CDN. Movimento con `--ease` / `--spring`; `prefers-reduced-motion` spegne tutto.
+- Regola: **compatto**. Margini e padding piccoli (card 14/18, wrap 12/16, gap 8–12); niente testo che sborda, nessuna sovrapposizione. `tests/layout.test.js` controlla su 320, 360, 390, 600, 820, 1024 e 1440 px che nessuna schermata scorra di lato, nessun elemento esca dal viewport o dalla sua card e nessun testo sia tagliato.
+
 ## Test
 `cd tests && npm run verify`: sync a due dispositivi (con modifiche offline), file, catena AI (fallback, JSON, streaming), PWA offline e lettore PDF, smoke su 3 viewport. Per le modifiche grafiche guarda sempre telefono (390), tablet (820) e desktop (1440).
 

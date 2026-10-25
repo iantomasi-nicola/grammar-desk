@@ -32,7 +32,7 @@ const pdf = () => { // a one-page PDF with the text "Unit 1 Hello"
     const q = await c2.newPage(); const e2 = []; q.on("pageerror", (e) => e2.push(e.message));
     await q.goto(s.url); await q.waitForSelector(".lg-ov"); await q.click('[data-k="local"]'); await q.waitForSelector(".streak-chip");
     await q.evaluate(async () => { const r = await navigator.serviceWorker.ready; r.active.postMessage("warm"); });
-    await q.waitForFunction(async () => { const c = await caches.open("gd-heavy-2"); return (await c.keys()).length >= 10; }, null, { timeout: 20000 }).catch(() => {});
+    await q.waitForFunction(async () => { const c = await caches.open("gd-heavy-3"); return (await c.keys()).length >= 8; }, null, { timeout: 20000 }).catch(() => {});
     await q.waitForTimeout(1500);
     await c2.setOffline(true);
     await q.reload(); await q.waitForSelector(".streak-chip", { timeout: 15000 });
