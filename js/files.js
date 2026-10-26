@@ -15,11 +15,14 @@ const Files = (() => {
     cur: null,            // what is moving right now: {dir:'up'|'down', id, name, size}
     errors: {},           // id → message of the last failure
     retryAt: {},          // id → time after which a failed transfer may be tried again
+    fresh: new Set(),     // ids the user has just added here: they win over a "removed" mark left in the account
     on(fn) { subs.add(fn); return () => subs.delete(fn); },
     emit() { for (const f of subs) { try { f(); } catch (e) { console.error(e); } } paintSync(); },
     auto: () => lsGet('gd.fdl', 'auto') !== 'manual',
     setAuto(v) { lsSet('gd.fdl', v ? 'auto' : 'manual'); if (v) F.reconcile(); F.emit(); },
     idOf, parse,
+    /* the user has just put this item on this device (import): upload it even if it was once removed from the account */
+    added(kind, key) { F.fresh.add(idOf(kind, key)); },
 
     async gzip(text) {
       if (typeof CompressionStream === 'undefined') return { blob: new Blob([text], { type: 'application/json' }), gz: false };
@@ -99,14 +102,14 @@ const Files = (() => {
           F.again = false;
           const reg = F.registry(), inv = await F.inventory(), have = new Set(inv.map((x) => x.id)), skip = new Set(getSkip()), now = Date.now();
           // 1) removed from the account on another device → remove here too
-          for (const x of inv) if (reg[x.id] && reg[x.id]._del) {
+          for (const x of inv) if (reg[x.id] && reg[x.id]._del && !F.fresh.has(x.id)) {
             await IDB.del(KINDS[x.kind].store, x.key); delete PDFS[x.key]; delete BOOKS[x.key]; have.delete(x.id); Store.emit();
           }
           // 2) here but not in the account → upload (PDF first, then the parsed book)
           for (const x of inv.sort((a, b) => (a.kind === 'book') - (b.kind === 'book'))) {
-            if (!have.has(x.id) || (reg[x.id] && reg[x.id].u === Cloud.uid)) continue; // listed but stored in another account (or project): upload again
+            if (!have.has(x.id) || (reg[x.id] && !reg[x.id]._del && reg[x.id].u === Cloud.uid)) continue; // listed but stored in another account (or project): upload again
             if ((F.retryAt[x.id] || 0) > now) continue;
-            try { delete F.errors[x.id]; await F.upload(x.kind, x.key); }
+            try { delete F.errors[x.id]; await F.upload(x.kind, x.key); F.fresh.delete(x.id); }
             catch (e) { console.warn('upload', x.id, e); F.errors[x.id] = F.msg(e); F.retryAt[x.id] = Date.now() + 120000; }
             finally { F.cur = null; F.emit(); }
           }

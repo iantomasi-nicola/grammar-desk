@@ -72,6 +72,16 @@ const idbHas = (page, store, key) => page.evaluate(([s, k]) => IDB.get(s, k).the
     assert.ok(mock.filesOf("f@test.it").some((k) => k.endsWith("/pdf/fpMOVED.pdf")), "uploaded again to this account");
     await B.page.evaluate(() => Store.sync(false));
     await until(B.page, () => IDB.get("pdf", "fpMOVED").then((v) => v != null));
+    // a book removed everywhere and then loaded again is kept, uploaded and reaches the other device (the old "removed" mark must not delete it)
+    await A.page.evaluate(async () => { await IDB.put("pdf", "fpAGAIN", { buf: new Uint8Array(30).buffer, name: "Again.pdf", size: 30 }); Files.added("pdf", "fpAGAIN"); await Files.reconcile(); });
+    await flush(A); await B.page.evaluate(() => Store.sync(false));
+    await until(B.page, () => IDB.get("pdf", "fpAGAIN").then((v) => v != null));
+    await A.page.evaluate(() => Files.removeEverywhere("pdf", "fpAGAIN")); await flush(A);
+    await B.page.evaluate(() => Store.sync(false)); await until(B.page, () => IDB.get("pdf", "fpAGAIN").then((v) => v == null));
+    await A.page.evaluate(async () => { await IDB.put("pdf", "fpAGAIN", { buf: new Uint8Array(30).buffer, name: "Again.pdf", size: 30 }); Files.added("pdf", "fpAGAIN"); await Files.reconcile(); });
+    assert.ok(await idbHas(A.page, "pdf", "fpAGAIN"), "the book loaded again is not deleted");
+    await flush(A); await B.page.evaluate(() => Store.sync(false));
+    await until(B.page, () => IDB.get("pdf", "fpAGAIN").then((v) => v != null));
     for (const D of [A, B]) assert.deepStrictEqual(D.errors, [], "no page errors: " + D.errors.join("; "));
     console.log("files.test ok");
   } finally { await b.close(); s.srv.close(); }

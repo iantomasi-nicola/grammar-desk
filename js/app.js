@@ -365,6 +365,7 @@ async function importPdf(file, onProgress) {
     const prev = m.books[fp] || {};
     m.books[fp] = { ...prev, t: shortTitle(book), p: book.profile, ex: book.stats.exercises, it: book.stats.items, added: (m.gone || {})[fp] ? Date.now() : prev.added || Date.now(), order: prev.order ?? Object.keys(m.books).length };
   });
+  Files.added('pdf', fp); Files.added('book', fp);
   Files.reconcile(); // copy the PDF and the parsed book to your account; your other devices download them
   return fp;
 }
@@ -1494,7 +1495,7 @@ async function importPracticeFiles(fileList, onProgress) {
     if (!/Speaking/i.test(texts[0] || '')) continue;
     const nm = /Practice Paper\s*(\d+)/i.exec(texts[0]) || /Paper\D*(\d+)/i.exec(e.name);
     const n = nm ? +nm[1] : Object.keys(man.spoken).length + 1;
-    await IDB.put('files', 'sp' + n + '/S', { buf: e.buf, type: 'application/pdf', name: e.name.split('/').pop() });
+    await IDB.put('files', 'sp' + n + '/S', { buf: e.buf, type: 'application/pdf', name: e.name.split('/').pop() }); Files.added('files', 'sp' + n + '/S');
     Store.put('QS' + n, { n, ...GGCore.parseSpoken(texts) });
     spokenDone.push('S' + n);
   }
@@ -1510,7 +1511,7 @@ async function importPracticeFiles(fileList, onProgress) {
   let k = 0;
   for (const n of ns) {
     const P = byPaper[n];
-    for (const kind in P) await IDB.put('files', 'pp' + n + '/' + kind, { buf: P[kind].buf, type: /^A/.test(kind) ? 'audio/mpeg' : 'application/pdf', name: P[kind].name.split('/').pop() });
+    for (const kind in P) { await IDB.put('files', 'pp' + n + '/' + kind, { buf: P[kind].buf, type: /^A/.test(kind) ? 'audio/mpeg' : 'application/pdf', name: P[kind].name.split('/').pop() }); Files.added('files', 'pp' + n + '/' + kind); }
     const info = man.papers[n] || { n };
     if (P.Ms) { const pdf = await openPdf(P.Ms.buf); info.key = GGCore.parseMarkScheme(await loadAllPages(pdf)); }
     if (P.EP) {
@@ -1770,7 +1771,7 @@ function cheatRefs(text) {
   return [...new Set(out)];
 }
 async function saveCheatsheet(secs, buf, name) {
-  if (buf && secs.geo) { await IDB.put('files', CS_PDF, { buf, type: 'application/pdf', name }); delete PDFS[CS_PDF]; Store.put('CSG', secs.geo); Files.reconcile(); }
+  if (buf && secs.geo) { await IDB.put('files', CS_PDF, { buf, type: 'application/pdf', name }); delete PDFS[CS_PDF]; Store.put('CSG', secs.geo); Files.added('files', CS_PDF); Files.reconcile(); }
   const byCh = {};
   for (const s of secs) { const ch = s.id.split('.')[0]; (byCh[ch] = byCh[ch] || []).push(s); }
   for (let i = 1; i <= 9; i++) { if (byCh[i]) Store.put('CS' + i, { secs: byCh[i] }); else if (Store.get('CS' + i)) Store.del('CS' + i); }
