@@ -1,7 +1,7 @@
 /* Grammar Desk service worker: opens instantly and works offline.
    App files: network first with a short timeout (the newest version when online, the saved one when not).
    Libraries, fonts and icons: cache first, in their own cache that survives updates. Nothing from other sites is touched. */
-const V = "gd-core-3", HEAVY = "gd-heavy-3";
+const V = "gd-core-4", HEAVY = "gd-heavy-3";
 const CORE = ["./", "index.html", "app.css", "config.js", "manifest.webmanifest",
   "js/cloud.js", "js/ai.js", "js/gg-core.js", "js/app.js", "js/files.js", "js/settings.js", "js/boot.js", "vendor/supabase.js"];
 const WARM = ["vendor/pdf.min.js", "vendor/pdf.worker.min.js", "vendor/jszip.min.js", "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-32.png", "icons/apple-180.png",

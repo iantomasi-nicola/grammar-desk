@@ -239,6 +239,19 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) Stor
 addEventListener('pagehide', () => { Store.saveLocal(); });
 function syncLabel() { return { cloud: 'Sincronizzato sui tuoi dispositivi', connecting: 'Connessione…', local: 'Salvato solo su questo dispositivo', readonly: 'Sola lettura: non posso salvare', error: 'Sincronizzazione in pausa' + (Store.lastErr ? ': ' + Store.lastErr : ', riprovo'), offline: 'Offline: salvo su questo dispositivo e sincronizzo appena torni online' }[SYNC] || ''; }
 
+/* home "Aggiorna": bring in what changed on the other devices, then reload the newest version of the app */
+function refreshBtn() {
+  return h('button', { class: 'iconbtn', id: 'refresh', 'aria-label': 'Aggiorna', title: 'Aggiorna: sincronizza e carica l\'ultima versione', onclick: async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.classList.add('spinning');
+    if (Store.mode === 'cloud' && navigator.onLine) await Store.sync(true);
+    await Store.saveLocal();
+    if (SYNC === 'error') { b.disabled = false; b.classList.remove('spinning'); toast(syncLabel()); return; }
+    if (!navigator.onLine) { b.disabled = false; b.classList.remove('spinning'); toast('Sei offline: aggiorno appena torni online.'); return; }
+    try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (x) {}
+    location.reload();
+  } }, icon('review'));
+}
+
 /* ---- domain accessors ---- */
 function meta() { return Store.get('meta') || { books: {}, cfg: {}, days: {}, last: null }; }
 function putMeta(fn) { const m = JSON.parse(JSON.stringify(meta())); fn(m); Store.put('meta', m); }
@@ -1756,7 +1769,8 @@ function cheatRefs(text) {
   while ((m = rx.exec(text))) { const a = +m[2], b = m[3] ? +m[3] : a; for (let i = a; i <= b && i - a < 12; i++) out.push(m[1] + '.' + i); }
   return [...new Set(out)];
 }
-async function saveCheatsheet(secs) {
+async function saveCheatsheet(secs, buf, name) {
+  if (buf && secs.geo) { await IDB.put('files', CS_PDF, { buf, type: 'application/pdf', name }); delete PDFS[CS_PDF]; Store.put('CSG', secs.geo); Files.reconcile(); }
   const byCh = {};
   for (const s of secs) { const ch = s.id.split('.')[0]; (byCh[ch] = byCh[ch] || []).push(s); }
   for (let i = 1; i <= 9; i++) { if (byCh[i]) Store.put('CS' + i, { secs: byCh[i] }); else if (Store.get('CS' + i)) Store.del('CS' + i); }
@@ -1767,7 +1781,7 @@ VIEWS.cheat = async () => {
     const f = e.target.files[0]; if (!f) return;
     const dlg = modal([h('div', { class: 'h2' }, 'Leggo il cheatsheet…'), h('span', { class: 'spin' })], { noClose: true });
     let stage = 'read';
-    try { const buf = await readFileBuf(f); stage = 'open'; const pdf = await openPdf(buf); stage = 'parse'; const secs = await GGCore.parseCheatsheet(pdf); await saveCheatsheet(secs); dlg.close(); toast(secs.length + ' sezioni importate'); render(); } catch (er) { dlg.close(); importErrorDialog(stageErr(stage, er), f.name); }
+    try { const buf = await readFileBuf(f); stage = 'open'; const pdf = await openPdf(buf); stage = 'parse'; const secs = await GGCore.parseCheatsheet(pdf); await saveCheatsheet(secs, buf, f.name); dlg.close(); toast(secs.length + ' sezioni importate'); render(); } catch (er) { dlg.close(); importErrorDialog(stageErr(stage, er), f.name); }
   } });
   if (!all.length) return shell('Cheatsheet', [h('label', { class: 'drop', for: 'csin' }, icon('upload'), h('div', { class: 'h2' }, 'Carica il tuo cheatsheet'), h('div', { class: 'muted small' }, 'Il PDF con le sezioni § del tuo piano.'), h('span', { class: 'btn primary' }, 'Scegli il PDF'), inp)], { back: true, narrow: true });
   const q = (S.cq || '').toLowerCase();
@@ -1785,7 +1799,18 @@ VIEWS.cs = async ({ id }) => {
   const s = cheatSec(id);
   if (!s) return shell('§' + id, [h('div', { class: 'card empty' }, 'Sezione non trovata. Carica il cheatsheet.', h('button', { class: 'btn', onclick: () => go('cheat') }, 'Cheatsheet'))], { back: true });
   const parts = [h('div', { class: 'hello' }, h('div', { class: 'eyebrow' }, '§' + s.id), h('h2', { class: 'h-display' }, s.title))];
-  if (s.text) {
+  // word lists read better as the app's own table (with audio); everything else as it looks in the PDF
+  const list = s.vocab.length >= 10 && s.text.length < 400;
+  const pages = s.at && Store.get('CSG') && !list ? h('div', { class: 'card cspdf', 'aria-busy': 'true' }, h('span', { class: 'spin' })) : null;
+  if (pages) {
+    const z = lsGet('gd.csz', 1), zoom = (d) => () => { lsSet('gd.csz', Math.min(2.2, Math.max(1, Math.round((lsGet('gd.csz', 1) + d) * 10) / 10))); render(); };
+    parts.push(h('div', { class: 'row', style: { justifyContent: 'flex-end', gap: '4px', marginBottom: '-4px' } },
+      h('span', { class: 'small muted grow' }, 'Puoi anche allargare con due dita'),
+      h('button', { class: 'iconbtn', 'aria-label': 'Rimpicciolisci', disabled: z <= 1, onclick: zoom(-0.6) }, icon('zoomout')),
+      h('button', { class: 'iconbtn', 'aria-label': 'Ingrandisci', disabled: z >= 2.2, onclick: zoom(0.6) }, icon('zoomin'))), pages);
+    csPages(s, pages, z);
+  }
+  else if (s.text) {
     const box = h('div', { class: 'card reflow selectable' });
     for (const line of s.text.split('\n')) { if (/^### /.test(line)) box.append(h('div', { class: 'hd' }, line.slice(4))); else box.append(h('div', null, line)); }
     parts.push(box);
@@ -1798,10 +1823,56 @@ VIEWS.cs = async ({ id }) => {
       h('div', { class: 'row wrapr' }, h('div', { class: 'grow' }, h('div', { class: 'h2' }, s.vocab.length + ' parole'), h('div', { class: 'small muted' }, studied + ' ripassate almeno una volta' + (added < s.vocab.length ? ' · ' + (s.vocab.length - added) + ' non ancora nelle flashcard' : ''))),
         h('button', { class: 'btn primary small', onclick: () => studySection(s) }, icon('cards'), added < s.vocab.length ? 'Aggiungi e ripassa' : 'Ripassa')),
       h('div', { class: 'bar good' }, h('i', { style: { width: (studied / s.vocab.length) * 100 + '%' } })),
-      h('div', { class: 'vtable selectable' }, s.vocab.map(([en, it], i) => h('div', { class: 'vrow' + (words[i] && words[i].srs && words[i].srs.reps >= 1 ? ' done' : '') }, h('span', { class: 'en' }, en), h('span', { class: 'it' }, it), speakBtn(en.replace(/\(.*?\)/g, ''), 'Ascolta ' + en))))));
+      pages ? null : h('div', { class: 'vtable selectable' }, s.vocab.map(([en, it], i) => h('div', { class: 'vrow' + (words[i] && words[i].srs && words[i].srs.reps >= 1 ? ' done' : '') }, h('span', { class: 'en' }, en), h('span', { class: 'it' }, it), speakBtn(en.replace(/\(.*?\)/g, ''), 'Ascolta ' + en))))));
   }
   return shell('§' + s.id, parts, { back: true, narrow: true });
 };
+/* the cheatsheet as it looks in the PDF: the slices of column from this heading to the next one */
+const CS_PDF = 'cs/pdf';
+async function csPdf() {
+  if (PDFS[CS_PDF]) return PDFS[CS_PDF];
+  const f = await ppFile(CS_PDF); if (!f) return null;
+  return (PDFS[CS_PDF] = await openPdf(f.buf));
+}
+function csSlices(s, g) {
+  const all = cheat().filter((x) => x.at).sort((a, b) => a.at[0] - b.at[0] || a.at[1] - b.at[1] || a.at[2] - b.at[2]);
+  const next = all[all.findIndex((x) => x.id === s.id) + 1];
+  const end = next ? next.at : [Infinity, 0, 0];
+  const out = []; let [p, c, y] = s.at;
+  for (let guard = 0; guard < 12; guard++) {
+    const last = p === end[0] && c === end[1];
+    const y1 = last ? end[2] : g.h - g.bot;
+    if (y1 - y > 6) out.push({ p, c, y0: y, y1 });
+    if (last || p > end[0]) break;
+    if (c === 0) c = 1; else { c = 0; p++; }
+    y = g.top;
+  }
+  return out;
+}
+async function csPages(s, box, z) {
+  const g = Store.get('CSG');
+  let pdf = null; try { pdf = await csPdf(); } catch (e) {}
+  if (!pdf) { box.removeAttribute('aria-busy'); box.replaceChildren(h('div', { class: 'small muted' }, 'Il PDF del cheatsheet non è su questo dispositivo: caricalo di nuovo da Cheatsheet → Aggiorna dal PDF.')); return; }
+  for (let i = 0; i < 60 && !box.isConnected; i++) await new Promise((r) => setTimeout(r, 16)); // measured once on screen
+  const cssW = Math.max(240, box.clientWidth - 16) * (z || 1);
+  const cut = (g.l + g.r) / 2;
+  const kids = [];
+  for (const sl of csSlices(s, g)) {
+    if (sl.p > pdf.numPages) break;
+    const page = await pdf.getPage(sl.p);
+    const x0 = sl.c ? cut : g.l, x1 = sl.c ? g.r : cut;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5), scale = (cssW * dpr) / (x1 - x0);
+    const c = document.createElement('canvas');
+    c.width = Math.round((x1 - x0) * scale); c.height = Math.round((sl.y1 - sl.y0) * scale);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale, offsetX: -x0 * scale, offsetY: -sl.y0 * scale }) }).promise;
+    c.style.width = cssW + 'px';
+    kids.push(c);
+  }
+  box.removeAttribute('aria-busy');
+  box.setAttribute('role', 'img'); box.setAttribute('aria-label', '§' + s.id + ' ' + s.title + ' com\'è nel PDF');
+  box.replaceChildren(...kids);
+}
 function studySection(s) {
   const all = vocab();
   let n = 0;
@@ -2095,7 +2166,7 @@ VIEWS.home = async () => {
   if (!books.length) {
     parts.push(dropZone(true));
     parts.push(planTodayCard());
-    return shell('Grammar Desk', parts);
+    return shell('Grammar Desk', parts, { right: refreshBtn() });
   }
   for (const fp of Object.keys(m.books || {})) await getBook(fp);
   parts.push(planTodayCard());
@@ -2137,7 +2208,7 @@ VIEWS.home = async () => {
   const bl = h('div', { class: 'list' });
   for (const [fp, b] of books) bl.append(await bookRow(fp, b));
   parts.push(h('section', { class: 'stack' }, h('div', { class: 'eyebrow' }, 'I tuoi libri'), bl));
-  return shell('Grammar Desk', parts);
+  return shell('Grammar Desk', parts, { right: refreshBtn() });
 };
 
 async function bookRow(fp, b) {

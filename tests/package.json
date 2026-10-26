@@ -2,7 +2,7 @@
   "name": "grammar-desk-tests",
   "private": true,
   "scripts": {
-    "verify": "node sync.test.js && node files.test.js && node ai.test.js && node pwa.test.js && node smoke.test.js && node textsize.test.js && node layout.test.js"
+    "verify": "node sync.test.js && node files.test.js && node ai.test.js && node pwa.test.js && node smoke.test.js && node textsize.test.js && node cheatsheet.test.js && node layout.test.js"
   },
   "devDependencies": { "playwright": "*" }
 }

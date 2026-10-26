@@ -412,6 +412,11 @@ body.focusview .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
 .loader { display: grid; gap: 10px; }
 .spin { width: 22px; height: 22px; border: 3px solid var(--md-container-highest); border-top-color: var(--md-primary); border-radius: 50%; animation: sp 0.9s linear infinite; display: inline-block; vertical-align: middle; }
 @keyframes sp { to { transform: rotate(360deg); } }
+.iconbtn.spinning svg { animation: sp 0.9s linear infinite; }
+/* cheatsheet section as in the PDF: white paper slices, full card width */
+.cspdf { padding: 8px; background: #fff; display: grid; gap: 0; justify-items: start; min-height: 80px; overflow-x: auto; }
+.cspdf[aria-busy] { place-content: center; justify-items: center; }
+.cspdf canvas { max-width: none; height: auto; display: block; }
 .pop { animation: pop .35s ease; }
 @keyframes pop { 0% { transform: scale(.96); opacity: .4; } 100% { transform: scale(1); opacity: 1; } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

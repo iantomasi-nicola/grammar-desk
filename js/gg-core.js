@@ -999,8 +999,10 @@
     for (const n of plan.notes) n.md = n.md.trim();
     plan.notes = plan.notes.filter((n) => n.md);
     // exam day: "venerdì 4 dicembre" mentioned in notes / week 8
-    const em = /(\d{1,2})\s+dicembre/i.exec(md.split('G = ')[1] || '') || /venerd[iì]\s+(\d{1,2})\s+dicembre/i.exec(md);
-    plan.exam = em ? mkDate(+em[1], 12) : null;
+    const MON = 'gennaio febbraio marzo aprile maggio giugno luglio agosto settembre ottobre novembre dicembre'.split(' ');
+    const mrx = '(\\d{1,2})\\s+(' + MON.join('|') + ')';
+    const em = new RegExp(mrx, 'i').exec(md.split('G = ')[1] || '') || new RegExp('esame[^\\n]*?(?:luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\\s+' + mrx, 'i').exec(md) || new RegExp('venerd[iì]\\s+' + mrx, 'i').exec(md);
+    plan.exam = em ? mkDate(+em[1], MON.indexOf(em[2].toLowerCase()) + 1) : null;
     return plan;
   }
 
@@ -1157,14 +1159,19 @@
   function pageLinesText(P) { return geoLines(P.t).map((L) => mergeToks(L).map((t) => t.s).join(' ')).join('\n'); }
 
   // ---------- personal cheatsheet (two-column Typst PDF) ----------
+  /* sections of the two-column cheatsheet; `at` = [page, column, top] of the heading and `geo` = the page frame,
+     so the app can show each section as it looks in the PDF (tables included) */
   async function parseCheatsheet(pdf, progress) {
     const secs = []; let cur = null;
     const N = pdf.numPages;
+    const geo = { w: 0, h: 0, l: Infinity, r: 0, top: 28, bot: 30 };
     for (let n = 1; n <= N; n++) {
       const P = await loadPage(pdf, n, true);
       const mid = P.w / 2;
       const body = P.t.filter((t) => t.y > 28 && t.y < P.h - 30 && !/^English cheatsheet$/.test(t.s));
-      for (const col of [body.filter((t) => t.x < mid - 5), body.filter((t) => t.x >= mid - 5)]) {
+      geo.w = P.w; geo.h = P.h;
+      for (const t of body) { geo.l = Math.min(geo.l, t.x); geo.r = Math.max(geo.r, t.x + t.w); }
+      for (const [c, col] of [body.filter((t) => t.x < mid - 5), body.filter((t) => t.x >= mid - 5)].entries()) {
         const lines = geoLines(col).map((L) => ({ y: L.y, t: mergeToks(L) }));
         for (const L of lines) {
           const txt = L.t.map((t) => t.s).join(' ').replace(/\s+/g, ' ').trim();
@@ -1172,7 +1179,7 @@
           if (/\.\s?\.\s?\.\s?\./.test(txt)) continue; // table of contents
           const hm = /^(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?\s+(.+)$/.exec(txt);
           const big = L.t[0].f === 'bold' || L.t[0].f === 'semi' || L.t[0].z > 11;
-          if (hm && big && !hm[3]) { cur = { id: hm[1] + '.' + hm[2], title: hm[4].trim(), lines: [], vocab: [] }; secs.push(cur); continue; }
+          if (hm && big && !hm[3]) { cur = { id: hm[1] + '.' + hm[2], title: hm[4].trim(), lines: [], vocab: [], at: [n, c, Math.max(0, Math.round(L.y - L.t[0].z * 1.3))] }; secs.push(cur); continue; }
           if (!cur) continue;
           if (/^English\s+Italiano$/i.test(txt)) continue;
           if (L.t.length >= 2 && cur.id.startsWith('3.')) {
@@ -1187,7 +1194,9 @@
       if (progress) progress(n / N);
     }
     for (const s of secs) { s.text = s.lines.join('\n'); delete s.lines; }
-    return secs.filter((s) => s.text || s.vocab.length);
+    const out = secs.filter((s) => s.text || s.vocab.length);
+    if (isFinite(geo.l)) { geo.l = Math.max(0, Math.floor(geo.l - 4)); geo.r = Math.min(geo.w, Math.ceil(geo.r + 4)); out.geo = geo; }
+    return out;
   }
 
   const API = { parseSpoken, ppMatch, ppVariants, parseMarkScheme, mapPaperPages, pageLinesText, parseCheatsheet, parsePlan, planRefs, autoOnly, nearMiss, withContext, firstAnswer, itemContext, loadPage, parseBook, gradeItem, normalize, candidates, partCandidates, splitParts, pageText, buildFlow, geoLines, fontClass };
