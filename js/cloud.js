@@ -105,6 +105,17 @@
     }
     return out;
   };
+  /* why a sync failed, in words that say what to do (shown next to "Sincronizzazione in pausa") */
+  Cloud.why = function (e) {
+    const c = String((e && e.code) || ''), m = String((e && (e.message || e.msg)) || e || '');
+    if (/^(42P01|PGRST205)$/.test(c) || /relation .* does not exist|could not find the table/i.test(m)) return 'manca la tabella gd_docs: esegui supabase/schema.sql in Supabase';
+    if (/^(PGRST30[0-3])$/.test(c) || /jwt|token/i.test(m)) return 'accesso scaduto: esci e accedi di nuovo';
+    if (c === '42501' || /row-level security|permission denied/i.test(m)) return 'accesso non valido: esci e accedi di nuovo (se resta, riesegui supabase/schema.sql)';
+    if (c === '22P05' || /unicode|\\u0000/i.test(m)) return 'un documento contiene caratteri non validi';
+    if (/payload too large|413/i.test(m)) return 'dati troppo grandi per una richiesta';
+    if (/failed to fetch|network|load failed/i.test(m)) return 'il server non risponde';
+    return m || 'errore sconosciuto';
+  };
   Cloud.upsert = async function (rows) {
     const { error } = await sb.from(TABLE).upsert(rows.map((r) => ({ user_id: Cloud.uid, path: r.path, data: r.data })), { onConflict: 'user_id,path' });
     if (error) throw error;

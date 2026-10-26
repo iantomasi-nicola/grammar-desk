@@ -32,6 +32,17 @@ const { serve } = require("./static-server.js"), { createMock } = require("./lib
     await A.page.waitForFunction(() => !Object.keys(Store.dirty).length);
     await B.page.evaluate(() => Store.sync(false)); await B.synced();
     assert.strictEqual(await B.page.evaluate(() => Store.get("V1")), null, "the deletion reached device B");
+    // text from a PDF with NUL characters (refused by Postgres jsonb) does not stop the sync
+    await A.page.evaluate(() => Store.put("QS9", { n: 9, p3: "a\u0000b" }));
+    await A.page.waitForFunction(() => !Object.keys(Store.dirty).length && SYNC === "cloud");
+    assert.strictEqual(mock.docsOf("a@test.it").get("QS9").data.p3, "ab", "the document reached the account without NUL");
+    // when the sync stops, the reason is shown
+    mock.st.noTable = true;
+    await A.page.evaluate(() => Store.sync(true));
+    assert.match(await A.page.evaluate(() => syncLabel()), /in pausa: manca la tabella gd_docs/);
+    mock.st.noTable = false;
+    await A.page.evaluate(() => Store.sync(true));
+    assert.strictEqual(await A.page.evaluate(() => syncLabel()), "Sincronizzato sui tuoi dispositivi");
     // a reload keeps everything (IndexedDB)
     await B.page.reload(); await B.page.waitForFunction(() => typeof Store !== "undefined" && Store.loaded);
     assert.ok(await B.page.evaluate((P) => !!Store.get(P), P), "documents survive a reload");

@@ -56,6 +56,7 @@ function createMock() {
     if (!user) return json(route, 401, { message: "JWT expired", code: "PGRST301" });
     // ---- documents ----
     if (p === "/rest/v1/gd_docs") {
+      if (st.noTable) return json(route, 404, { code: "PGRST205", message: "Could not find the table 'public.gd_docs' in the schema cache" });
       const t = st.docs.get(user) || st.docs.set(user, new Map()).get(user);
       if (m === "GET") {
         let rows = [...t.entries()].map(([path, v]) => ({ path, data: v.data, updated_at: v.updated_at }));
@@ -65,6 +66,7 @@ function createMock() {
         return json(route, 200, rows.slice(off, off + lim), { "content-range": "0-" + Math.max(0, rows.length - 1) + "/*" });
       }
       if (m === "POST") {
+        if ((req.postData() || "").includes("\\u0000")) return json(route, 400, { code: "22P05", message: "unsupported Unicode escape sequence" }); // like Postgres jsonb
         const rows = JSON.parse(req.postData() || "[]");
         for (const r of rows) t.set(r.path, { data: r.data, updated_at: stamp() });
         return route.fulfill({ status: 201, headers: CORS, body: "" });

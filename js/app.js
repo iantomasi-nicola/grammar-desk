@@ -129,6 +129,11 @@ function mergeDoc(id, a, b) {
   }
   return newer;
 }
+/* text read from PDFs can carry NUL characters, which Postgres jsonb refuses: one such document would stop the whole sync */
+function noNul(d) {
+  const j = JSON.stringify(d);
+  return j && j.includes('\\u0000') ? JSON.parse(j.replace(/(?<!\\)((?:\\\\)*)\\u0000/g, '$1')) : d;
+}
 const Store = {
   docs: {}, dirty: {}, mode: 'local', cursor: null,
   subs: new Set(), saveQ: new Set(), loaded: false,
@@ -136,15 +141,15 @@ const Store = {
   emit() { for (const f of this.subs) { try { f(); } catch (e) { console.error(e); } } },
   async load() {
     const [all, dirty] = await Promise.all([IDB.all('docs'), IDB.get('kv', 'dirty')]);
-    for (const [k, v] of all) this.docs[k] = v;
     this.dirty = dirty || {};
+    for (const [k, v] of all) { this.docs[k] = noNul(v); if (this.docs[k] !== v) { this.dirty[k] = 1; this.saveQ.add(k); } }
     this.loaded = true;
   },
   get(id) { const d = this.docs[id]; return d && !d._del ? d : null; },
   all(prefix) { return Object.entries(this.docs).filter(([k, v]) => k.startsWith(prefix) && v && !v._del).map(([k, v]) => ({ id: k, ...v })); },
   put(id, data) {
     const old = this.docs[id];
-    this.docs[id] = { ...data, _u: Math.max(Date.now(), ((old && old._u) || 0) + 1) };
+    this.docs[id] = { ...noNul(data), _u: Math.max(Date.now(), ((old && old._u) || 0) + 1) };
     this.touch(id); this.emit();
   },
   del(id) { this.put(id, { _del: true }); },
@@ -210,11 +215,12 @@ const Store = {
       }
       await this.saveLocal();
       if (changed) this.emit();
-      this.lastSync = Date.now();
+      this.lastSync = Date.now(); this.lastErr = '';
       setSync('cloud');
       if (typeof Files !== 'undefined') Files.reconcile();
     } catch (e) {
       console.warn('sync', e);
+      this.lastErr = Cloud.why(e);
       setSync(navigator.onLine ? 'error' : 'offline');
       clearTimeout(this.retryT); this.retryT = setTimeout(() => this.sync(false), navigator.onLine ? 15000 : 30000);
     } finally {
@@ -231,7 +237,7 @@ addEventListener('online', () => { paintOffline(); toast('Di nuovo online: sincr
 addEventListener('offline', () => { paintOffline(); toast('Sei offline: continuo a salvare qui e sincronizzo dopo.'); if (Store.mode === 'cloud') setSync('offline'); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) Store.resume(); else Store.saveLocal(); });
 addEventListener('pagehide', () => { Store.saveLocal(); });
-function syncLabel() { return { cloud: 'Sincronizzato sui tuoi dispositivi', connecting: 'Connessione…', local: 'Salvato solo su questo dispositivo', readonly: 'Sola lettura: non posso salvare', error: 'Sincronizzazione in pausa, riprovo', offline: 'Offline: salvo su questo dispositivo e sincronizzo appena torni online' }[SYNC] || ''; }
+function syncLabel() { return { cloud: 'Sincronizzato sui tuoi dispositivi', connecting: 'Connessione…', local: 'Salvato solo su questo dispositivo', readonly: 'Sola lettura: non posso salvare', error: 'Sincronizzazione in pausa' + (Store.lastErr ? ': ' + Store.lastErr : ', riprovo'), offline: 'Offline: salvo su questo dispositivo e sincronizzo appena torni online' }[SYNC] || ''; }
 
 /* ---- domain accessors ---- */
 function meta() { return Store.get('meta') || { books: {}, cfg: {}, days: {}, last: null }; }
