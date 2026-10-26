@@ -53,7 +53,7 @@ const Files = (() => {
       size = blob.size;
       F.cur = { dir: 'up', id, name, size }; F.emit();
       await Cloud.filePut(pathOf(kind, key), blob, type);
-      Store.put(id, { kind, key, n: name, s: size, t: type, gz, at: Date.now() });
+      Store.put(id, { kind, key, n: name, s: size, t: type, gz, at: Date.now(), u: Cloud.uid });
       return true;
     },
     /* download one registry item to this device */
@@ -75,7 +75,7 @@ const Files = (() => {
     /* make sure an item is on this device (download it now if the account has it) */
     async ensure(kind, key) {
       if (await IDB.get(KINDS[kind].store, key) != null) return true;
-      if (Store.mode !== 'cloud' || !navigator.onLine || !Store.get(idOf(kind, key))) return false;
+      if (Store.mode !== 'cloud' || !navigator.onLine || !inAccount(Store.get(idOf(kind, key)))) return false;
       try { const ok = await F.download(kind, key); return ok; } catch (e) { F.errors[idOf(kind, key)] = F.msg(e); return false; } finally { F.cur = null; F.emit(); }
     },
 
@@ -84,6 +84,7 @@ const Files = (() => {
       if (/exceeded the maximum allowed size|payload too large|413/i.test(m)) return 'File troppo grande per il limite del tuo Supabase (di solito 50 MB): alza il limite in Storage → Settings, oppure usa un PDF più leggero.';
       if (/bucket not found/i.test(m)) return 'Manca la cartella dei file: esegui supabase/schema.sql nel tuo progetto Supabase.';
       if (/row-level security|unauthorized|not authorized|403/i.test(m)) return 'Permesso negato dal tuo Supabase: esegui di nuovo supabase/schema.sql.';
+      if (/object not found|not_found|404/i.test(m)) return 'Il file non è ancora nel tuo account: apri l’app sul dispositivo dove l’hai aggiunto, da lì lo carico.';
       if (/failed to fetch|network|load failed/i.test(m)) return 'Connessione interrotta: riprovo più tardi.';
       return m;
     },
@@ -103,7 +104,7 @@ const Files = (() => {
           }
           // 2) here but not in the account → upload (PDF first, then the parsed book)
           for (const x of inv.sort((a, b) => (a.kind === 'book') - (b.kind === 'book'))) {
-            if (!have.has(x.id) || reg[x.id]) continue;
+            if (!have.has(x.id) || (reg[x.id] && reg[x.id].u === Cloud.uid)) continue; // listed but stored in another account (or project): upload again
             if ((F.retryAt[x.id] || 0) > now) continue;
             try { delete F.errors[x.id]; await F.upload(x.kind, x.key); }
             catch (e) { console.warn('upload', x.id, e); F.errors[x.id] = F.msg(e); F.retryAt[x.id] = Date.now() + 120000; }
@@ -111,7 +112,7 @@ const Files = (() => {
           }
           // 3) in the account but not here → download (when automatic)
           if (F.auto()) for (const d of F.live()) {
-            if (have.has(d.id) || skip.has(d.id)) continue;
+            if (have.has(d.id) || skip.has(d.id) || !inAccount(d)) continue;
             if ((F.retryAt[d.id] || 0) > now) continue;
             try { delete F.errors[d.id]; if (await F.download(d.kind, d.key)) { have.add(d.id); Store.emit(); } }
             catch (e) { console.warn('download', d.id, e); F.errors[d.id] = F.msg(e); F.retryAt[d.id] = Date.now() + 120000; }
@@ -135,6 +136,8 @@ const Files = (() => {
       F.emit(); Store.emit();
     },
   };
+  /* the registry travels with the documents: an entry whose file was stored in another account or project has no file here yet */
+  function inAccount(d) { return !!d && !d._del && (!d.u || d.u === Cloud.uid); }
   function paintSync() {
     const el = document.getElementById('syncdot'); if (!el) return;
     el.classList.toggle('busy', !!F.cur);

@@ -61,6 +61,17 @@ const idbHas = (page, store, key) => page.evaluate(([s, k]) => IDB.get(s, k).the
     await B.page.waitForFunction(() => !!Store.get(Files.idOf("pdf", "fpLATE")));
     await B.page.waitForTimeout(400);
     assert.ok(!(await idbHas(B.page, "pdf", "fpLATE")), "manual mode does not download");
+    // a registry entry that came from another account or project (its file is not in this bucket) is uploaded again
+    // by the device that has the file, and the other device does not try to download it meanwhile
+    await B.page.evaluate(() => Files.setAuto(true));
+    await A.page.evaluate(async () => { await IDB.put("pdf", "fpMOVED", { buf: new Uint8Array(7).buffer, name: "Moved.pdf", size: 7 }); Store.put(Files.idOf("pdf", "fpMOVED"), { kind: "pdf", key: "fpMOVED", n: "Moved.pdf", s: 7, t: "application/pdf", at: 1, u: "u-old-project" }); });
+    await flush(A);
+    await B.page.evaluate(() => Store.sync(false)); await B.page.waitForFunction(() => !!Store.get(Files.idOf("pdf", "fpMOVED")));
+    assert.strictEqual(await B.page.evaluate(() => Files.ensure("pdf", "fpMOVED")), false, "nothing to download yet");
+    await A.page.evaluate(() => Files.reconcile()); await flush(A);
+    assert.ok(mock.filesOf("f@test.it").some((k) => k.endsWith("/pdf/fpMOVED.pdf")), "uploaded again to this account");
+    await B.page.evaluate(() => Store.sync(false));
+    await until(B.page, () => IDB.get("pdf", "fpMOVED").then((v) => v != null));
     for (const D of [A, B]) assert.deepStrictEqual(D.errors, [], "no page errors: " + D.errors.join("; "));
     console.log("files.test ok");
   } finally { await b.close(); s.srv.close(); }
