@@ -10,8 +10,10 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
     del(k) { try { localStorage.removeItem(k); } catch (e) {} },
   };
+  // one saved login per project: moving the app to another project asks to sign in again instead of reusing a foreign account
+  const AUTH = 'gd-auth-' + String(CFG.supabaseUrl || '').replace(/^https?:\/\//, '').split('.')[0];
   const sb = CFG.supabaseUrl && CFG.supabaseKey && window.supabase
-    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'gd-auth', detectSessionInUrl: true } })
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, storageKey: AUTH, detectSessionInUrl: true } })
     : null;
   const Cloud = window.Cloud = { sb, configured: !!sb, uid: null, email: null, TABLE, BUCKET };
 
@@ -78,7 +80,7 @@
       try { const r = await sb.auth.getSession(); s = r.data.session; err = r.error; } catch (e) { err = e; }
       // offline with an expired token: keep using the account saved on this device; it refreshes once back online
       if (!s && (err || !navigator.onLine)) {
-        try { const st = JSON.parse(localStorage.getItem('gd-auth') || 'null'), u = st && (st.user || (st.currentSession && st.currentSession.user)); if (u && u.id) s = { user: u }; } catch (e) {}
+        try { const st = JSON.parse(localStorage.getItem(AUTH) || 'null'), u = st && (st.user || (st.currentSession && st.currentSession.user)); if (u && u.id) s = { user: u }; } catch (e) {}
       }
       if (!s && !ls.get('gd.localOnly', false)) s = await Cloud.loginScreen();
       if (s) { Cloud.uid = s.user.id; Cloud.email = s.user.email || ''; }
